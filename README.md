@@ -8,9 +8,12 @@ This project detects and classifies potentially dangerous cardiac arrhythmias fr
 
 The system extracts statistical, frequency-domain, and heart rate variability (HRV) features from ECG signals and uses a Random Forest classifier to predict one of six arrhythmia classes.
 
-Planned deployment architecture:
+Deployment architecture:
 
-ECG File → Feature Extraction → Random Forest Model → AWS Lambda → API Gateway → JSON Response
+ECG record → Feature Extraction → Random Forest Model → AWS Lambda (ZIP) → JSON Response
+
+The model is stored in Amazon S3 and loaded into the Lambda `/tmp` cache at
+runtime. An API Gateway front door is planned.
 
 ---
 
@@ -144,14 +147,17 @@ from backend.services.model_loader import get_model
 
 The artifact is **generated** from `backend/` (never edited by hand):
 
-* `package/` — flat ZIP artifact built by `scripts/build_package.py`. Inside it,
+* `package/` — flat artifact staged by `scripts/build_package.py`. Inside it,
   imports are rewritten to the flat Lambda style:
 
 ```python
 from model_loader import get_model
 ```
 
-The artifact does not vendor `boto3`/`botocore`; the AWS runtime provides them.
+The same script also bundles the synthetic test record at `package/data/` and
+zips everything into `lambda.zip` with forward-slash paths (correct for Linux/
+Lambda). The artifact does not vendor `boto3`/`botocore`; the runtime provides
+them.
 
 ### 3. `test_lambda.py` — local end-to-end test
 
@@ -159,8 +165,12 @@ Imports from `backend`, generates a synthetic ECG (so no real dataset is
 required) and runs the full Lambda handler locally:
 
 ```bash
+pip install -r requirements.txt
 python test_lambda.py
+# -> {'statusCode': 200, 'body': '{"class_id": 5, "class_name": "Sinus_rhythm", ...}'}
 ```
+
+It loads the model from `data/models/` when present (no AWS credentials needed).
 
 ## Project Structure
 
@@ -182,17 +192,20 @@ ECG_AI_Serverless/
 │       └── mock_ecg.py       # synthetic ECG generator for testing
 │
 ├── data/
-│   ├── models/random_forest_final.joblib
-│   ├── mock/                 # generated synthetic records (gitignored)
-│   └── processed/dataset.csv
+│   ├── models/
+│   │   ├── random_forest_final.joblib   # trained model (uploaded to S3)
+│   │   └── model_metadata.json
+│   ├── mock.hea / mock.dat   # tiny synthetic test record (bundled into the ZIP)
+│   └── processed/dataset.csv # extracted feature dataset (gitignored)
 │
 ├── scripts/
-│   ├── build_dataset.py
+│   ├── build_dataset.py      # re-extract features from ECG_DB
 │   ├── train_model.py
 │   ├── predict_sample.py
-│   └── build_package.py      # builds package/ from backend/
+│   └── build_package.py      # builds package/ + lambda.zip from backend/
 │
-├── package/                  # GENERATED ZIP artifact (gitignored)
+├── package/                  # GENERATED staging dir (gitignored)
+├── lambda.zip                # GENERATED deploy artifact (gitignored)
 ├── test_lambda.py            # local end-to-end test
 ├── requirements.txt          # dev deps (pandas + boto3 for training/upload)
 ├── requirements-lambda.txt   # runtime deps (numpy/scipy/scikit-learn/joblib)
@@ -255,7 +268,7 @@ the ZIP (AWS Lambda's working directory is the function root `/var/task`):
 
 ### 2. Upload the model to S3 (once, and after every retrain)
 
-The 34 MB model is **not** in the ZIP; it is downloaded to `/tmp` at runtime.
+The ~35 MB model is **not** in the ZIP; it is downloaded to `/tmp` at runtime.
 
 ```bash
 aws s3 cp data/models/random_forest_final.joblib \
