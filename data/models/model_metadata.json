@@ -1,0 +1,10 @@
+{
+    "model": "RandomForestClassifier",
+    "dataset": "PhysioNet ECG Fragment Database for Dangerous Arrhythmia (2022)",
+    "dataset_size": 1016,
+    "num_classes": 6,
+    "num_features": 22,
+    "accuracy": 0.7696,
+    "balanced_accuracy": 0.7560,
+    "random_state": 42
+}

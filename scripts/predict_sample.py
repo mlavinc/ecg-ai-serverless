@@ -1,36 +1,40 @@
-import pandas as pd
+from pathlib import Path
 
 from backend.models.predict import (
     load_model,
-    predict
+    predict_ecg
 )
 
-
-MODEL_PATH = "data/models/random_forest.joblib"
+DATA_PATH = Path("ECG_DB")
 
 
 def main():
 
-    df = pd.read_csv(
-        "data/processed/dataset.csv"
+    model = load_model(
+        "data/models/random_forest_final.joblib"
     )
 
-    sample = (
-        df
-        .drop(columns=["label", "class_name"])
-        .iloc[0]
-        .to_dict()
+    records = list(
+        DATA_PATH.rglob("*.hea")
     )
 
-    model = load_model(MODEL_PATH)
+    if not records:
+        print("No ECG files found.")
+        return
 
-    result = predict(
+    sample_record = records[0]
+
+    print(
+        f"\nTesting record: "
+        f"{sample_record.name}"
+    )
+
+    result = predict_ecg(
         model,
-        sample
+        str(sample_record.with_suffix(""))
     )
 
-    print("\nPrediction Result\n")
-
+    print("\nPrediction\n")
     print(result)
 
 

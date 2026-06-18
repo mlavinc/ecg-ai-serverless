@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from backend.features.ecg_features import extract_features
+from backend.services.ecg_service import load_ecg
 
 
 # =====================================

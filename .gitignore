@@ -10,7 +10,6 @@ ECG_DB/
 
 # Generated files
 data/processed/
-data/models/
 
 # IDE
 .vscode/
