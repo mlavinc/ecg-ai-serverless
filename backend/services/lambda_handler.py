@@ -1,18 +1,17 @@
 import json
 
-from backend.constants import MODEL_PATH
-from backend.models.predict import load_model, predict_ecg
-
-
-MODEL = load_model(MODEL_PATH)
+from backend.services.model_loader import get_model
+from backend.models.predict import predict_ecg
 
 
 def lambda_handler(event, context):
 
     record_path = event["record_path"]
 
+    model = get_model()
+
     result = predict_ecg(
-        MODEL,
+        model,
         record_path
     )
 

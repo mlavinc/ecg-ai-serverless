@@ -1,0 +1,17 @@
+# Runtime dependencies for the AWS Lambda ZIP artifact (Python 3.11).
+#
+# Deliberately minimal so the ZIP fits well under the 250 MB limit:
+#   * neurokit2 + matplotlib were removed (HRV peaks now use scipy.signal).
+#   * wfdb + aiohttp/requests/fsspec/soundfile were removed (custom reader).
+#   * pandas is NOT needed at inference (the model is fed numpy arrays).
+#   * boto3 / botocore are provided by the AWS Lambda runtime.
+#
+# scipy is still present because scikit-learn depends on it; reusing it for
+# peak detection / stats / FFT therefore adds nothing to the package size.
+#
+# Versions are the newest that publish cp311 / manylinux2014 wheels, so they
+# install and run on the Amazon Linux 2 based python3.11 runtime.
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.7.2
+joblib==1.4.2

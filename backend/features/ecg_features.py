@@ -1,9 +1,43 @@
 import numpy as np
-import neurokit2 as nk
 
 from scipy.stats import skew
 from scipy.stats import kurtosis
 from scipy.fft import fft
+from scipy.signal import find_peaks, butter, filtfilt
+
+
+SAMPLING_RATE = 250
+
+
+def detect_r_peaks(signal_flat, sampling_rate=SAMPLING_RATE):
+    """Pan-Tompkins-style R-peak detector using only scipy.
+
+    Replaces the previous neurokit2 dependency (which pulled in matplotlib)
+    with scipy, which is already required by scikit-learn -- so it adds
+    nothing to the deployment size. A 5-15 Hz band-pass isolates the QRS
+    energy and squaring emphasises the R waves regardless of polarity,
+    which gives cleaner RR intervals than a raw amplitude threshold.
+
+    The feature *values* differ from the neurokit2 version, so the model is
+    retrained on these features to keep training and inference coherent.
+    """
+    min_distance = max(1, int(0.25 * sampling_rate))  # up to ~240 bpm
+
+    nyq = 0.5 * sampling_rate
+    low, high = 5.0 / nyq, 15.0 / nyq
+    b, a = butter(2, [low, high], btype="band")
+
+    # filtfilt needs enough samples; fall back to the raw signal otherwise.
+    if len(signal_flat) > 3 * (max(len(a), len(b)) + 1):
+        filtered = filtfilt(b, a, signal_flat)
+    else:
+        filtered = signal_flat - np.mean(signal_flat)
+
+    energy = filtered ** 2
+    threshold = np.mean(energy) + 0.5 * np.std(energy)
+
+    peaks, _ = find_peaks(energy, distance=min_distance, height=threshold)
+    return peaks
 
 
 def extract_features(signal):
@@ -56,12 +90,7 @@ def extract_features(signal):
 
     try:
 
-        _, info = nk.ecg_peaks(
-            signal_flat,
-            sampling_rate=250
-        )
-
-        peaks = info["ECG_R_Peaks"]
+        peaks = detect_r_peaks(signal_flat, sampling_rate=250)
 
         if len(peaks) >= 2:
 

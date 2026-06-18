@@ -1,7 +1,7 @@
-import wfdb
-import numpy as np
 import pandas as pd
 from pathlib import Path
+
+from backend.constants import CLASS_MAPPING
 from backend.features.ecg_features import extract_features
 from backend.services.ecg_service import load_ecg
 
@@ -12,23 +12,6 @@ from backend.services.ecg_service import load_ecg
 
 DATA_PATH = Path(__file__).resolve().parent.parent / "ECG_DB"
 
-CLASS_MAPPING = {
-    "1_Dangerous_VFL_VF": 0,
-    "2_Special_Form_VTTdP": 1,
-    "3_Threatening_VT": 2,
-    "4_Potential_Dangerous": 3,
-    "5_Supraventricular": 4,
-    "6_Sinus_rhythm": 5,
-}
-
-
-# =====================================
-# ECG Loader
-# =====================================
-
-def load_ecg(record_path):
-    record = wfdb.rdrecord(str(record_path))
-    return record.p_signal
 
 # =====================================
 # Label Mapping

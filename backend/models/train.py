@@ -13,36 +13,7 @@ from sklearn.metrics import (
 import joblib
 from pathlib import Path
 
-
-FEATURE_COLUMNS = [
-    "mean",
-    "median",
-    "std",
-    "variance",
-    "min",
-    "max",
-    "range",
-    "rms",
-    "energy",
-    "peak_to_peak",
-    "waveform_length",
-
-    "mean_rr",
-    "std_rr",
-    "rmssd",
-
-
-    "min_rr",
-    "max_rr",
-    "rr_range",
-
-    "skewness",
-    "kurtosis",
-
-    "dominant_frequency",
-    "spectral_energy",
-    "spectral_entropy",
-]
+from backend.constants import FEATURE_COLUMNS
 
 
 def train_model(X_train, y_train):
@@ -69,8 +40,10 @@ def main():
         "data/processed/dataset.csv"
     )
 
-    X = df[FEATURE_COLUMNS]
-    y = df["label"]
+    # Train on plain numpy arrays so the saved model carries no feature-name
+    # metadata. Inference then feeds numpy arrays too (no pandas at runtime).
+    X = df[FEATURE_COLUMNS].to_numpy(dtype=float)
+    y = df["label"].to_numpy()
 
     print(f"Dataset shape: {df.shape}")
 
@@ -100,7 +73,7 @@ def main():
 
     model_path = (
         model_dir /
-        "random_forest.joblib"
+        "random_forest_final.joblib"
     )
 
     joblib.dump(

@@ -1,0 +1,13 @@
+# Local development dependencies.
+#
+# Same pinned versions as the Lambda runtime (so the model is trained and
+# served with identical library versions = no version-mismatch warnings),
+# plus the tools only needed for dataset building / training / S3 upload.
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.7.2
+joblib==1.4.2
+
+# Dev-only (not packaged into the Lambda ZIP):
+pandas==2.2.2   # dataset CSV building + training
+boto3           # uploading the trained model to S3
