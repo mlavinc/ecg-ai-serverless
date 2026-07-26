@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
@@ -13,7 +15,7 @@ from sklearn.metrics import (
 import joblib
 from pathlib import Path
 
-from backend.constants import FEATURE_COLUMNS
+from backend.constants import CLASS_NAMES, FEATURE_COLUMNS, MODEL_VERSION
 
 
 def train_model(X_train, y_train):
@@ -30,6 +32,58 @@ def train_model(X_train, y_train):
     model.fit(X_train, y_train)
 
     return model
+
+
+def save_metrics(accuracy, balanced_accuracy, report_dict, confusion, labels_sorted, df):
+    """Persist evaluation metrics consumed by the /metrics API route.
+
+    Writes data/models/model_metadata.json: the single source of truth for
+    both this training script and the ``/metrics`` Lambda route (see
+    backend/services/metrics_service.py).
+    """
+    class_names_sorted = [CLASS_NAMES[label] for label in labels_sorted]
+
+    per_class = {
+        CLASS_NAMES[label]: {
+            "precision": round(report_dict[str(label)]["precision"], 4),
+            "recall": round(report_dict[str(label)]["recall"], 4),
+            "f1_score": round(report_dict[str(label)]["f1-score"], 4),
+            "support": int(report_dict[str(label)]["support"]),
+        }
+        for label in labels_sorted
+    }
+
+    class_distribution = (
+        df["class_name"].value_counts().sort_index().to_dict()
+    )
+
+    metrics = {
+        "model": "RandomForestClassifier",
+        "model_version": MODEL_VERSION,
+        "dataset": "PhysioNet ECG Fragment Database for Dangerous Arrhythmia (2022)",
+        "dataset_size": int(len(df)),
+        "num_classes": len(CLASS_NAMES),
+        "num_features": len(FEATURE_COLUMNS),
+        "random_state": 42,
+        "accuracy": round(float(accuracy), 4),
+        "balanced_accuracy": round(float(balanced_accuracy), 4),
+        "macro_precision": round(report_dict["macro avg"]["precision"], 4),
+        "macro_recall": round(report_dict["macro avg"]["recall"], 4),
+        "macro_f1_score": round(report_dict["macro avg"]["f1-score"], 4),
+        "per_class": per_class,
+        "class_distribution": class_distribution,
+        "confusion_matrix": {
+            "labels": class_names_sorted,
+            "matrix": confusion.tolist(),
+        },
+    }
+
+    output_path = Path("data/models/model_metadata.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as fh:
+        json.dump(metrics, fh, indent=2)
+
+    print(f"\nMetrics saved to: {output_path}")
 
 
 def main():
@@ -113,6 +167,14 @@ def main():
         f"Balanced Accuracy : {balanced_accuracy:.4f}"
     )
 
+    report_dict = classification_report(
+        y_test,
+        y_pred,
+        digits=4,
+        output_dict=True,
+        zero_division=0,
+    )
+
     print("\nClassification Report\n")
 
     print(
@@ -125,12 +187,23 @@ def main():
 
     print("\nConfusion Matrix\n")
 
+    labels_sorted = sorted(CLASS_NAMES.keys())
     cm = confusion_matrix(
         y_test,
-        y_pred
+        y_pred,
+        labels=labels_sorted,
     )
 
     print(cm)
+
+    save_metrics(
+        accuracy=accuracy,
+        balanced_accuracy=balanced_accuracy,
+        report_dict=report_dict,
+        confusion=cm,
+        labels_sorted=labels_sorted,
+        df=df,
+    )
 
     feature_importance = pd.DataFrame({
         "feature": FEATURE_COLUMNS,

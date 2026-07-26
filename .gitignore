@@ -16,6 +16,19 @@ data/mock/
 package/
 lambda.zip
 
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfplan
+infra/terraform.tfvars
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
 # IDE
 .vscode/
 .idea/

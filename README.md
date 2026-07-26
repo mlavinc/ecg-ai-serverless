@@ -1,19 +1,29 @@
 # ECG AI Serverless
 
-ECG arrhythmia classification system using Machine Learning and AWS Serverless architecture.
+ECG arrhythmia classification system using Machine Learning and a fully
+serverless AWS architecture — built as a portfolio project demonstrating
+practical ML, frontend, and cloud infrastructure engineering.
 
 ## Overview
 
-This project detects and classifies potentially dangerous cardiac arrhythmias from ECG recordings.
+This project detects and classifies short ECG fragments into six
+arrhythmia-related rhythm classes. A Random Forest model, trained on
+statistical, heart-rate-variability (HRV) and frequency-domain features,
+runs inference inside an AWS Lambda function with zero always-on
+infrastructure.
 
-The system extracts statistical, frequency-domain, and heart rate variability (HRV) features from ECG signals and uses a Random Forest classifier to predict one of six arrhythmia classes.
+```
+React (Vite) ──► CloudFront ──┬──► S3 (private, via OAC)      [Frontend]
+                               └──► Lambda Function URL         [Backend]
+                                          ↓
+                                  Random Forest Model
+                                  (cached in /tmp, sourced from S3)
+```
 
-Deployment architecture:
-
-ECG record → Feature Extraction → Random Forest Model → AWS Lambda (ZIP) → JSON Response
-
-The model is stored in Amazon S3 and loaded into the Lambda `/tmp` cache at
-runtime. An API Gateway front door is planned.
+No API Gateway, no servers, no containers, no idle cost: everything can be
+created with `terraform apply` and fully destroyed with `terraform destroy`
+between demos. See [`infra/README.md`](infra/README.md) for the
+infrastructure and [`frontend/`](frontend) for the React app.
 
 ---
 
@@ -49,17 +59,28 @@ Class distribution:
 
 ## Technology Stack
 
-* Python 3.11
-* NumPy
-* SciPy (stats, FFT, and signal-based R-peak detection)
-* Scikit-Learn (RandomForest)
-* Pandas (development / training only)
-* AWS Lambda (ZIP deployment)
-* Amazon S3 (model storage)
-* API Gateway (planned)
+**Backend / ML**
 
-Removed to fit the 250 MB ZIP limit: `wfdb` (replaced by a minimal numpy
-format-16 reader) and `neurokit2` + `matplotlib` (HRV peaks now via scipy).
+* Python 3.11, NumPy, SciPy (stats, FFT, R-peak detection), Scikit-Learn (RandomForest)
+* AWS Lambda (ZIP deployment) with a **Lambda Function URL** (no API Gateway)
+* Amazon S3 (model storage, downloaded to `/tmp` at runtime)
+
+**Frontend**
+
+* React 19 + TypeScript + Vite
+* Tailwind CSS + shadcn/ui (Radix primitives)
+* React Router, TanStack Query, Axios, Zod
+* Framer Motion (animation), react-dropzone (file upload)
+* uPlot (ECG signal — canvas-based, built for dense time series) and Recharts (probabilities, metrics, confusion matrix)
+
+**Infrastructure**
+
+* Terraform (S3, CloudFront + Origin Access Control, Lambda + Function URL, IAM)
+* Amazon CloudFront as the single entry point for both frontend and API
+
+Removed from the Lambda runtime to fit the 250 MB ZIP limit: `wfdb`
+(replaced by a minimal numpy format-16 reader) and `neurokit2` + `matplotlib`
+(HRV peaks now via scipy).
 
 ---
 
@@ -67,148 +88,132 @@ format-16 reader) and `neurokit2` + `matplotlib` (HRV peaks now via scipy).
 
 ### Statistical Features
 
-* mean
-* median
-* std
-* variance
-* min
-* max
-* range
-* rms
-* energy
-* peak_to_peak
-* waveform_length
+mean, median, std, variance, min, max, range, rms, energy, peak_to_peak, waveform_length
 
 ### HRV Features
 
-* mean_rr
-* std_rr
-* rmssd
-* min_rr
-* max_rr
-* rr_range
+mean_rr, std_rr, rmssd, min_rr, max_rr, rr_range
 
 ### Signal Shape Features
 
-* skewness
-* kurtosis
+skewness, kurtosis
 
 ### Frequency Domain Features
 
-* dominant_frequency
-* spectral_energy
-* spectral_entropy
+dominant_frequency, spectral_energy, spectral_entropy
 
-Total features: 22
+Total features: 22 — see `backend/constants.py::FEATURE_COLUMNS` (single
+source of truth for training and inference) and
+`backend/features/ecg_features.py`.
 
 ---
 
 ## Model
 
-Algorithm:
-
-* RandomForestClassifier
-
-Configuration:
-
-* class_weight="balanced"
-* random_state=42
-
----
-
-## Current Results
-
-Accuracy: **77.5%**
-
-Balanced Accuracy: **71.5%**
-
-The model is trained on six ECG rhythm classes and evaluated using a stratified
-train-test split. These numbers reflect the lightweight, dependency-free feature
-pipeline (see "Deployment strategy" below); they are intentionally a small
-trade-off against the original neurokit2-based pipeline (75.6% balanced) in
-exchange for a much smaller, simpler Lambda ZIP.
+* `RandomForestClassifier` (`class_weight="balanced"`, `random_state=42`)
+* Accuracy: **76.96%** · Balanced Accuracy: **75.6%**
+* Metrics (accuracy, balanced accuracy, per-class precision/recall/F1,
+  confusion matrix, class distribution) are computed by
+  `backend/models/train.py::save_metrics` and persisted to
+  `data/models/model_metadata.json`, which the `/metrics` API route serves
+  directly. Per-class precision/recall/F1 and the confusion matrix are
+  `null` until `scripts/train_model.py` is re-run with the raw PhysioNet
+  dataset present (not bundled in this repo) — the `/metrics` route and the
+  Model Performance page both degrade gracefully in the meantime.
 
 ---
 
-## Architecture: two clearly separated environments
+## API contract
 
-This project keeps **development source** and the **Lambda deployment artifact**
-strictly separate.
+Exposed at `/api/*` through CloudFront (same-origin as the frontend — no
+CORS needed) or directly via the Lambda Function URL. See
+`backend/services/lambda_handler.py`.
 
-### 1. `backend/` — source code (development)
+| Route | Method | Description |
+| --- | --- | --- |
+| `/health` | GET | Liveness + "is the model loaded" check |
+| `/metrics` | GET | Static evaluation metrics (see `data/models/model_metadata.json`) |
+| `/predict` | POST | Runs inference on an uploaded ECG record |
 
-All clean Python lives here and uses package-style imports:
+`POST /predict` request body:
 
-```python
-from backend.services.model_loader import get_model
+```json
+{
+  "header": "<base64-encoded .hea file>",
+  "signal": "<base64-encoded .dat file>"
+}
 ```
 
-### 2. Deployment artifact
+`POST /predict` response body:
 
-The artifact is **generated** from `backend/` (never edited by hand):
-
-* `package/` — flat artifact staged by `scripts/build_package.py`. Inside it,
-  imports are rewritten to the flat Lambda style:
-
-```python
-from model_loader import get_model
+```json
+{
+  "prediction": {
+    "class_id": 5,
+    "class_name": "Sinus_rhythm",
+    "confidence": 0.83,
+    "probabilities": { "Dangerous_VFL_VF": 0.01, "...": 0.0, "Sinus_rhythm": 0.83 }
+  },
+  "features": { "mean_rr": 0.83, "...": 0 },
+  "signal": { "sampling_rate": 250, "values": [ /* downsampled for charting */ ], "total_samples": 2500 },
+  "meta": { "inference_time_ms": 42.1, "model_version": "random-forest-v1", "class_names": ["..."] }
+}
 ```
 
-The same script also bundles the synthetic test record at `package/data/` and
-zips everything into `lambda.zip` with forward-slash paths (correct for Linux/
-Lambda). The artifact does not vendor `boto3`/`botocore`; the runtime provides
-them.
+Errors return `{"error": "..."}` with `400` for malformed/invalid input and
+`500` for unexpected failures (see `ApiError` in `lambda_handler.py`).
 
-### 3. `test_lambda.py` — local end-to-end test
-
-Imports from `backend`, generates a synthetic ECG (so no real dataset is
-required) and runs the full Lambda handler locally:
-
-```bash
-pip install -r requirements.txt
-python test_lambda.py
-# -> {'statusCode': 200, 'body': '{"class_id": 5, "class_name": "Sinus_rhythm", ...}'}
-```
-
-It loads the model from `data/models/` when present (no AWS credentials needed).
+---
 
 ## Project Structure
 
 ```
 ECG_AI_Serverless/
-├── backend/                  # SOURCE (development)
-│   ├── __init__.py
-│   ├── constants.py          # CLASS_NAMES, FEATURE_COLUMNS, S3 config
+├── backend/                   # SOURCE (development)
+│   ├── constants.py           # CLASS_NAMES, FEATURE_COLUMNS, S3 config, metrics path
 │   ├── features/
 │   │   └── ecg_features.py
 │   ├── models/
-│   │   ├── train.py
+│   │   ├── train.py           # trains + persists data/models/model_metadata.json
 │   │   └── predict.py
 │   ├── services/
-│   │   ├── ecg_service.py
-│   │   ├── lambda_handler.py
-│   │   └── model_loader.py   # cross-platform /tmp cache + S3 download
+│   │   ├── ecg_service.py     # WFDB reader (filesystem AND in-memory bytes)
+│   │   ├── lambda_handler.py  # HTTP router: /health, /metrics, /predict
+│   │   ├── metrics_service.py
+│   │   └── model_loader.py    # cross-platform /tmp cache + S3 download
 │   └── utils/
-│       └── mock_ecg.py       # synthetic ECG generator for testing
+│       └── mock_ecg.py        # synthetic ECG generator for testing
 │
 ├── data/
 │   ├── models/
 │   │   ├── random_forest_final.joblib   # trained model (uploaded to S3)
-│   │   └── model_metadata.json
-│   ├── mock.hea / mock.dat   # tiny synthetic test record (bundled into the ZIP)
-│   └── processed/dataset.csv # extracted feature dataset (gitignored)
+│   │   └── model_metadata.json          # served by GET /metrics
+│   └── mock.hea / mock.dat              # tiny synthetic test record (bundled into the ZIP)
+│
+├── frontend/                   # React + Vite SPA
+│   ├── public/samples/         # synthetic per-class ECG samples ("Try a sample")
+│   └── src/
+│       ├── app/                # router, providers (React Query, theme)
+│       ├── components/         # ui/ (shadcn primitives), charts/, layout/
+│       ├── features/           # ecg-upload, ecg-classification, model-metrics
+│       ├── pages/               # Analyze, ModelPerformance, HowItWorks, About
+│       ├── services/api/        # axios client + Zod schemas
+│       ├── types/ · utils/
+│
+├── infra/                      # Terraform: S3, OAC, CloudFront, Lambda, IAM
 │
 ├── scripts/
-│   ├── build_dataset.py      # re-extract features from ECG_DB
+│   ├── build_dataset.py        # re-extract features from ECG_DB
 │   ├── train_model.py
 │   ├── predict_sample.py
-│   └── build_package.py      # builds package/ + lambda.zip from backend/
+│   ├── generate_frontend_samples.py  # synthetic per-class samples for the frontend
+│   └── build_package.py        # builds package/ + lambda.zip from backend/
 │
-├── package/                  # GENERATED staging dir (gitignored)
-├── lambda.zip                # GENERATED deploy artifact (gitignored)
-├── test_lambda.py            # local end-to-end test
-├── requirements.txt          # dev deps (pandas + boto3 for training/upload)
-├── requirements-lambda.txt   # runtime deps (numpy/scipy/scikit-learn/joblib)
+├── package/                    # GENERATED staging dir (gitignored)
+├── lambda.zip                  # GENERATED deploy artifact (gitignored)
+├── test_lambda.py              # local end-to-end test (health + metrics + predict)
+├── requirements.txt            # dev deps (pandas + boto3 for training/upload)
+├── requirements-lambda.txt     # runtime deps (numpy/scipy/scikit-learn/joblib)
 └── .gitignore
 ```
 
@@ -225,83 +230,135 @@ optional dependencies:
 
 This project removes both **without changing the model's role**:
 
-* R-peak detection now uses a small **Pan-Tompkins-style detector built on
+* R-peak detection uses a small **Pan-Tompkins-style detector built on
   `scipy.signal`** (`backend/features/ecg_features.py`). scipy is already a
   scikit-learn dependency, so this adds nothing to the package.
 * ECG files are read by a **minimal numpy WFDB format-16 reader**
-  (`backend/services/ecg_service.py`) — byte-identical to `wfdb` on this dataset.
+  (`backend/services/ecg_service.py`), from disk or directly from in-memory
+  bytes (used by the HTTP handler).
 * Inference feeds the model **numpy arrays**, so `pandas` is not packaged.
-
-The model is **retrained** on these features so the training and inference
-pipelines stay coherent (Python 3.11 / scikit-learn 1.7.2 stack).
-
-Resulting runtime dependencies: `numpy`, `scipy`, `scikit-learn`, `joblib`.
 
 | Artifact | Size |
 | --- | --- |
 | Unzipped package | **~183 MB** (limit 250 MB) |
 | Zipped `lambda.zip` | **~57 MB** |
 
-## Deployment (ZIP, Python 3.11)
+## Why no API Gateway
 
-### 1. Build the artifact
+Lambda Function URLs give a direct HTTPS endpoint to the function with zero
+extra cost beyond the Lambda invocation itself. API Gateway's free tier only
+lasts 12 months on new AWS accounts — Function URLs, combined with
+CloudFront and Lambda's *always-free* tiers, keep this project at **$0
+indefinitely**, not just during the first year. CloudFront proxies `/api/*`
+to the Function URL, so the frontend and backend share one domain (no CORS
+handling needed in the deployed app either). See
+[`infra/README.md`](infra/README.md) for the full architecture and cost
+breakdown.
 
-```bash
-python scripts/build_package.py
-```
+---
 
-This single command builds `package/` (Linux cp311 wheels), bundles the test
-record at `package/data/mock.{hea,dat}`, and writes `lambda.zip` directly.
+## Local development
 
-> The zip is created in Python with forward-slash paths on purpose. Do **not**
-> use PowerShell 5.1 `Compress-Archive` — it writes backslash paths that AWS
-> Lambda (Linux) treats as literal filenames, breaking the package.
-
-Handler: `lambda_handler.lambda_handler`  •  Runtime: `python3.11`
-
-The demo invocation works with no external files because the record is inside
-the ZIP (AWS Lambda's working directory is the function root `/var/task`):
-
-```json
-{ "record_path": "data/mock" }
-```
-
-### 2. Upload the model to S3 (once, and after every retrain)
-
-The ~35 MB model is **not** in the ZIP; it is downloaded to `/tmp` at runtime.
+### Backend
 
 ```bash
-aws s3 cp data/models/random_forest_final.joblib \
-    s3://ecg-ai-models-mlavinc/random_forest_final.joblib --region sa-east-1
+pip install -r requirements.txt
+python test_lambda.py
+# -> GET /health -> {...}
+# -> GET /metrics -> {...}
+# -> POST /predict -> {...} (synthetic ECG, no dataset required)
 ```
 
-### 3. Create the function
-
-The zipped artifact (~57 MB) exceeds the 50 MB **direct** upload limit, so
-upload it through S3:
+Retrain (requires the raw `ECG_DB/` dataset, not included in this repo):
 
 ```bash
-aws s3 cp lambda.zip s3://<your-deploy-bucket>/lambda.zip --region sa-east-1
-
-aws lambda create-function \
-  --function-name ecg-ai \
-  --runtime python3.11 \
-  --handler lambda_handler.lambda_handler \
-  --role <EXECUTION_ROLE_ARN> \
-  --code S3Bucket=<your-deploy-bucket>,S3Key=lambda.zip \
-  --timeout 30 --memory-size 1024 \
-  --region sa-east-1
+python scripts/build_dataset.py    # writes data/processed/dataset.csv
+python scripts/train_model.py      # writes the model + data/models/model_metadata.json
 ```
 
-The execution role needs `s3:GetObject` on the model bucket plus the basic
-Lambda logging permissions. Updates: `aws lambda update-function-code
---function-name ecg-ai --s3-bucket <bucket> --s3-key lambda.zip`.
+Regenerate the frontend's synthetic per-class samples:
+
+```bash
+python scripts/generate_frontend_samples.py
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+By default `/api/*` is proxied (see `vite.config.ts`) to
+`http://localhost:9000` — point `VITE_DEV_API_PROXY_TARGET` at a locally
+invoked Lambda (e.g. via `sam local start-lambda` or the AWS Lambda Runtime
+Interface Emulator), or set `VITE_API_BASE_URL` to a deployed Function URL
+for a quick manual check.
+
+---
+
+## Deploying to AWS
+
+1. **Build the Lambda artifact**
+
+   ```bash
+   python scripts/build_package.py
+   ```
+
+   > The zip is created in Python with forward-slash paths on purpose. Do
+   > **not** use PowerShell 5.1 `Compress-Archive` — it writes backslash
+   > paths that AWS Lambda (Linux) treats as literal filenames.
+
+2. **Upload the model to S3** (once, and after every retrain)
+
+   ```bash
+   aws s3 cp data/models/random_forest_final.joblib \
+       s3://ecg-ai-models-mlavinc/random_forest_final.joblib --region sa-east-1
+   ```
+
+3. **Provision the infrastructure**
+
+   ```bash
+   cd infra
+   terraform init
+   terraform apply
+   ```
+
+4. **Deploy the frontend build**
+
+   ```bash
+   cd frontend
+   npm run build
+   aws s3 sync dist/ "s3://$(terraform -chdir=../infra output -raw frontend_bucket_name)" --delete
+   aws cloudfront create-invalidation \
+     --distribution-id "$(terraform -chdir=../infra output -raw cloudfront_distribution_id)" \
+     --paths "/*"
+   ```
+
+5. **Open the app**
+
+   ```bash
+   terraform -chdir=infra output cloudfront_domain_name
+   ```
+
+6. **Tear it down when you're done demoing**
+
+   ```bash
+   terraform -chdir=infra destroy
+   ```
+
+Full details, cost analysis, and the reasoning behind every infrastructure
+choice: [`infra/README.md`](infra/README.md).
 
 ### Free Tier notes
 
 * `python3.11` ZIP (no container, no ECR) → no ECR storage cost.
-* 1024 MB memory + warm-start model caching in `/tmp` and in-process keeps each
-  invocation well within the Lambda free tier for personal use.
+* No API Gateway → no 12-month-only free tier cliff.
+* No Route 53 hosted zone / ACM certificate → the default `*.cloudfront.net`
+  domain is used, keeping this at a strict $0.
+* 1024 MB memory + warm-start model caching in `/tmp` keeps each invocation
+  well within the Lambda always-free tier for personal/demo use.
 
 ---
 
@@ -309,24 +366,27 @@ Lambda logging permissions. Updates: `aws lambda update-function-code
 
 Completed:
 
-* Dataset generation pipeline
-* ECG feature extraction
-* HRV feature extraction
-* Random Forest training pipeline
-* ECG prediction from real .hea/.dat files
-* Model evaluation
-* Feature importance analysis
-
-* Dependency-light feature pipeline (scipy-only HRV, numpy WFDB reader)
-* AWS Lambda ZIP packaging under 250 MB (~183 MB unzipped)
-* S3 model loading with /tmp caching
+* Dataset generation pipeline, feature extraction (statistical, HRV, spectral)
+* Random Forest training pipeline + evaluation metrics persistence
+* Dependency-light Lambda ZIP (numpy WFDB reader, scipy-only HRV, no pandas at inference)
+* HTTP router (`/health`, `/metrics`, `/predict`) ready for a Lambda Function URL
+* React + Vite frontend: Analyze, Model Performance, How It Works, About
+* Terraform infrastructure (S3 + OAC + CloudFront + Lambda Function URL + IAM), `terraform validate`-clean
 
 Next:
 
-* API Gateway endpoint
-* CI for automated package builds
+* CI for automated package builds + Terraform plan checks
+* Re-run training against the full PhysioNet dataset to populate the confusion matrix / per-class metrics
 
 ---
+
+## Limitations
+
+This is a **technical portfolio demonstration, not a medical device**. It
+makes no clinical or diagnostic claims, is trained on a small public
+research dataset (1,016 fragments), and the "Try a sample" ECGs bundled with
+the frontend are synthetic signals generated to illustrate each class
+visually — not real patient recordings.
 
 ## License
 

@@ -71,6 +71,7 @@ PLATFORMS = [
 SOURCE_MODULES = {
     "services/lambda_handler.py": "lambda_handler.py",
     "services/model_loader.py": "model_loader.py",
+    "services/metrics_service.py": "metrics_service.py",
     "services/ecg_service.py": "ecg_service.py",
     "models/predict.py": "predict.py",
     "features/ecg_features.py": "ecg_features.py",
@@ -80,6 +81,9 @@ SOURCE_MODULES = {
 # Synthetic test record bundled into package/data/ so the demo invocation
 # (record_path="data/mock") works on AWS without any file outside the ZIP.
 TEST_DATA_FILES = ["mock.hea", "mock.dat"]
+
+# Static model metrics served by the /metrics route (see metrics_service.py).
+METRICS_FILE = PROJECT_ROOT / "data" / "models" / "model_metadata.json"
 
 # Things Lambda already provides or that bloat the artifact.
 PRUNE_TOP_LEVEL = {"boto3", "botocore", "pip", "setuptools", "wheel", "_distutils_hack"}
@@ -148,6 +152,15 @@ def copy_test_data():
         src = PROJECT_ROOT / "data" / name
         shutil.copy2(src, dst_dir / name)
         print(f"  data/{name} -> package/data/{name}")
+
+    print("Bundling model metrics (data/models/model_metadata.json) ...")
+    dst_models_dir = dst_dir / "models"
+    dst_models_dir.mkdir(parents=True, exist_ok=True)
+    if METRICS_FILE.exists():
+        shutil.copy2(METRICS_FILE, dst_models_dir / "model_metadata.json")
+        print("  data/models/model_metadata.json -> package/data/models/model_metadata.json")
+    else:
+        print("  WARNING: model_metadata.json not found, /metrics will report unavailable.")
 
 
 def prune():
