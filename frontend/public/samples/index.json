@@ -1,0 +1,44 @@
+[
+  {
+    "id": "dangerous_vfl_vf",
+    "label": "Dangerous VFL VF",
+    "className": "Dangerous_VFL_VF",
+    "description": "Chaotic, high-frequency oscillation with no discernible QRS-T structure.",
+    "file": "dangerous_vfl_vf.json"
+  },
+  {
+    "id": "special_form_vttdp",
+    "label": "Special Form VTTdP",
+    "className": "Special_Form_VTTdP",
+    "description": "Polymorphic QRS complexes with a twisting amplitude envelope.",
+    "file": "special_form_vttdp.json"
+  },
+  {
+    "id": "threatening_vt",
+    "label": "Threatening VT",
+    "className": "Threatening_VT",
+    "description": "Fast, wide-QRS regular rhythm with reduced RR variability.",
+    "file": "threatening_vt.json"
+  },
+  {
+    "id": "potential_dangerous",
+    "label": "Potential Dangerous",
+    "className": "Potential_Dangerous",
+    "description": "Irregular rhythm with occasional ectopic-like spikes.",
+    "file": "potential_dangerous.json"
+  },
+  {
+    "id": "supraventricular",
+    "label": "Supraventricular",
+    "className": "Supraventricular",
+    "description": "Narrow, regular QRS complexes at an elevated rate, abnormal P-wave timing.",
+    "file": "supraventricular.json"
+  },
+  {
+    "id": "sinus_rhythm",
+    "label": "Sinus rhythm",
+    "className": "Sinus_rhythm",
+    "description": "Regular QRS complexes at a normal rate with stable RR intervals.",
+    "file": "sinus_rhythm.json"
+  }
+]
