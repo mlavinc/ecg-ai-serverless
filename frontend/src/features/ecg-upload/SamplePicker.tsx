@@ -52,7 +52,7 @@ export function SamplePicker({ onSelect, disabled, activeSampleId }: SamplePicke
         })}
       </div>
       <Badge variant="outline" className="mt-2 text-[11px]">
-        Synthetic demo signals, not real patient data
+        Synthetic sample signals, not real patient data
       </Badge>
     </div>
   )

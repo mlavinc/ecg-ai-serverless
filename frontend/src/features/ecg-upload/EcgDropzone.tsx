@@ -65,7 +65,7 @@ export function EcgDropzone({ onFilesReady, disabled }: EcgDropzoneProps) {
             {isDragActive ? 'Drop the files here' : 'Drag & drop an ECG record'}
           </p>
           <p className="text-muted-foreground mt-1 text-sm">
-            WFDB format &mdash; select both the <code className="font-mono">.hea</code> and{' '}
+            WFDB format: select both the <code className="font-mono">.hea</code> and{' '}
             <code className="font-mono">.dat</code> files, or pick a sample below.
           </p>
         </div>

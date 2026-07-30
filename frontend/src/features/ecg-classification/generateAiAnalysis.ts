@@ -35,7 +35,7 @@ export function generateAiAnalysis(prediction: Prediction, features: EcgFeatures
     )
   } else {
     notes.push(
-      `The margin over the runner-up class (${titleCase(runnerUpClass)}, ${(runnerUpProb * 100).toFixed(1)}%) is narrow — the model is comparatively uncertain between these two classes for this fragment.`,
+      `The margin over the runner-up class (${titleCase(runnerUpClass)}, ${(runnerUpProb * 100).toFixed(1)}%) is narrow, so the model is comparatively uncertain between these two classes for this fragment.`,
     )
   }
 
@@ -58,7 +58,7 @@ export function generateAiAnalysis(prediction: Prediction, features: EcgFeatures
   }
 
   notes.push(
-    'This output reflects a statistical pattern learned from a public arrhythmia dataset. It is a technical demonstration of an ML pipeline, not a clinical or diagnostic assessment.',
+    'This output reflects a statistical pattern learned from a public arrhythmia dataset. It is not a clinical or diagnostic assessment.',
   )
 
   return notes

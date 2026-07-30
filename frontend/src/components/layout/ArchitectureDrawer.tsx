@@ -30,7 +30,7 @@ const STEPS = [
     icon: Zap,
     title: 'Lambda Function URL',
     detail:
-      "The ECG file (header + signal, base64) is POSTed to /api/predict. No API Gateway is involved — the request hits the function's native HTTPS endpoint directly.",
+      "The ECG file (header + signal, base64) is POSTed to /api/predict. The request hits the function's native HTTPS endpoint directly, without API Gateway.",
   },
   {
     icon: Cpu,

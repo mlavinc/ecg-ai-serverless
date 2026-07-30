@@ -1,11 +1,20 @@
 import axios from 'axios'
 
-// In production, CloudFront serves the frontend and proxies /api/* to the
-// Lambda Function URL under the SAME domain (see infra/cloudfront.tf), so
-// the default of a relative "/api" base URL requires no CORS handling.
-// VITE_API_BASE_URL can override this for local development against a
-// standalone Function URL.
-const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+/**
+ * API base URL resolution:
+ * - VITE_API_URL: preferred (Vercel / standalone Function URL)
+ * - VITE_API_BASE_URL: legacy alias
+ * - default `/api`: same-origin CloudFront proxy in AWS deploy
+ */
+function resolveApiBaseUrl(): string {
+  const raw =
+    import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    '/api'
+  return String(raw).replace(/\/$/, '')
+}
+
+const baseURL = resolveApiBaseUrl()
 
 export const apiClient = axios.create({
   baseURL,

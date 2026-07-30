@@ -23,7 +23,7 @@ export function Navbar() {
           <span className="bg-primary/20 text-foreground flex size-7 items-center justify-center rounded-lg">
             <Activity className="size-4" />
           </span>
-          <span className="hidden sm:inline">ECG AI</span>
+          <span className="hidden sm:inline">ECG-AI</span>
         </NavLink>
 
         <nav className="hidden items-center gap-1 md:flex">

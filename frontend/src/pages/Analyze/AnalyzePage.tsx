@@ -48,14 +48,14 @@ export function AnalyzePage() {
       <section className="mb-10 flex flex-col items-center gap-4 text-center">
         <Badge variant="outline" className="gap-1.5">
           <HeartPulse className="size-3" />
-          Portfolio Demo &middot; Not for clinical use
+          Not for clinical use
         </Badge>
         <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-          ECG arrhythmia classification, running on a fully serverless AWS pipeline
+          ECG arrhythmia classification on a serverless AWS pipeline
         </h1>
         <p className="text-muted-foreground max-w-xl text-sm sm:text-base">
-          Drop an ECG record (or try a sample) and a Random Forest model, served straight from a
-          Lambda Function URL, classifies it into one of six rhythm classes in real time.
+          Upload an ECG record or try a sample. A Random Forest model on AWS Lambda
+          classifies the signal into one of six rhythm classes.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <ArchitectureDrawer />

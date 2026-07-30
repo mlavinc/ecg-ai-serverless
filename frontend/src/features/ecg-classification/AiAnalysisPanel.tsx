@@ -19,7 +19,7 @@ export function AiAnalysisPanel({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Sparkles className="text-primary size-4" />
-          AI Analysis
+          Model interpretation
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -40,9 +40,8 @@ export function AiAnalysisPanel({
         <div className="bg-muted/60 mt-1 flex items-start gap-2 rounded-lg p-3 text-xs">
           <Info className="text-muted-foreground mt-0.5 size-3.5 shrink-0" />
           <p className="text-muted-foreground">
-            Generated deterministically from the model's own output (probabilities + extracted
-            features). This describes what the statistical model computed — it is a portfolio
-            technical demo, not a clinical or diagnostic tool.
+            Generated from the model output (probabilities and extracted features). This
+            summarizes what the classifier computed. Not a clinical or diagnostic tool.
           </p>
         </div>
       </CardContent>

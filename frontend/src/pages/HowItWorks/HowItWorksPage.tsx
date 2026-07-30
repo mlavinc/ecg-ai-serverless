@@ -16,13 +16,13 @@ const PIPELINE = [
     icon: Database,
     title: 'CloudFront → S3 (static assets)',
     description:
-      'Requests for the app shell and assets are served from a private S3 bucket, reachable only via an Origin Access Control (OAC) — never public.',
+      'Requests for the app shell and assets are served from a private S3 bucket, reachable only via an Origin Access Control (OAC). The bucket is never public.',
   },
   {
     icon: Zap,
     title: 'CloudFront /api/* → Lambda Function URL',
     description:
-      'Requests to /api/* are routed to a Lambda Function URL as a second CloudFront origin behavior. No API Gateway sits in between — this keeps the architecture inside AWS\'s always-free tier indefinitely.',
+      'Requests to /api/* are routed to a Lambda Function URL as a second CloudFront origin behavior. Skipping API Gateway keeps the stack inside AWS always-free tier limits.',
   },
   {
     icon: FileJson,
@@ -55,11 +55,11 @@ const FAQ = [
   },
   {
     q: 'Is this a medical device?',
-    a: 'No. This is a technical portfolio project demonstrating an end-to-end ML + serverless pipeline. It makes no clinical or diagnostic claims.',
+    a: 'No. This is a technical portfolio project for an end-to-end ML and serverless pipeline. It makes no clinical or diagnostic claims.',
   },
   {
     q: 'How is the infrastructure deployed?',
-    a: 'Everything (S3, OAC, CloudFront, Lambda, IAM) is defined in Terraform, so the whole stack can be created with `terraform apply` and fully torn down with `terraform destroy` between demos.',
+    a: 'Everything (S3, OAC, CloudFront, Lambda, IAM) is defined in Terraform, so the stack can be created with `terraform apply` and torn down with `terraform destroy`.',
   },
 ]
 
@@ -72,8 +72,8 @@ export function HowItWorksPage() {
         </Badge>
         <h1 className="text-2xl font-semibold tracking-tight">How It Works</h1>
         <p className="text-muted-foreground mx-auto mt-2 max-w-xl text-sm">
-          A fully serverless pipeline: no servers to patch, no idle cost, and infrastructure that
-          can be destroyed and rebuilt on demand.
+          A serverless pipeline with no idle servers and infrastructure that can be
+          destroyed and rebuilt on demand.
         </p>
       </div>
 

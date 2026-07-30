@@ -15,7 +15,7 @@ export function AboutPage() {
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">About this project</h1>
         <p className="text-muted-foreground mt-2 text-sm">
-          A portfolio project demonstrating an end-to-end, cost-aware serverless ML pipeline.
+          End-to-end ML inference on a cost-aware serverless AWS stack.
         </p>
       </div>
 
@@ -27,11 +27,10 @@ export function AboutPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-muted-foreground text-sm leading-relaxed">
-            ECG AI classifies short ECG fragments into six arrhythmia-related rhythm classes using
+            ECG-AI classifies short ECG fragments into six arrhythmia-related rhythm classes using
             a Random Forest model trained on statistical, heart-rate-variability, and
-            frequency-domain features. The goal is to showcase practical skills across machine
-            learning, frontend architecture, and serverless AWS infrastructure — not to ship a
-            production medical tool.
+            frequency-domain features. The project highlights applied ML, frontend architecture,
+            and serverless AWS infrastructure. It is not a production medical tool.
           </CardContent>
         </Card>
 
@@ -62,9 +61,9 @@ export function AboutPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-muted-foreground text-sm leading-relaxed">
-            PhysioNet ECG Fragment Database for Dangerous Arrhythmia (2022) — 1,016 labeled
-            single-lead ECG fragments across 6 classes. Used strictly for educational and research
-            purposes.
+            PhysioNet ECG Fragment Database for Dangerous Arrhythmia (2022): 1,016 labeled
+            single-lead ECG fragments across 6 classes. Used for educational and research
+            purposes only.
           </CardContent>
         </Card>
 
@@ -81,8 +80,8 @@ export function AboutPage() {
               accuracy (~77%) reflects that scale.
             </p>
             <p>
-              Sample ECGs bundled with the demo are synthetic, generated to illustrate each class
-              visually — they are not real patient recordings.
+              Sample ECGs bundled with the app are synthetic, generated to illustrate each class
+              visually. They are not real patient recordings.
             </p>
           </CardContent>
         </Card>
