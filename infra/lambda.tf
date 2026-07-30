@@ -54,10 +54,16 @@ resource "aws_lambda_function_url" "inference" {
   authorization_type = "NONE"
   invoke_mode        = "BUFFERED"
 
+  # Browser CORS for the Vercel frontend.
+  # - Do NOT list OPTIONS in allow_methods (AWS rejects method strings > 6 chars).
+  # - allow_headers must include every non-safelisted header the browser will
+  #   preflight (axios sends Content-Type + Accept on POST /predict).
+  # - CORS headers are owned exclusively by this block; the Lambda handler must
+  #   not also emit Access-Control-* or browsers see duplicate ACAO and fail.
   cors {
     allow_origins = ["*"]
     allow_methods = ["GET", "POST"]
-    allow_headers = ["content-type"]
+    allow_headers = ["content-type", "accept"]
     max_age       = 300
   }
 }

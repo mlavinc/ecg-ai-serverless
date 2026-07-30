@@ -13,10 +13,10 @@ Routes:
     GET  /metrics    -> static model evaluation metrics
     POST /predict    -> run inference on an uploaded ECG record
 
-CORS is not required for the deployed architecture (CloudFront serves the
-frontend and proxies /api/* to this same function, so requests are
-same-origin). The headers below are added anyway as a safe default for
-direct testing against the raw Function URL.
+CORS is configured on the Function URL itself (see infra/lambda.tf). Do NOT
+add Access-Control-* headers here: the Function URL layer already injects
+them, and duplicate Access-Control-Allow-Origin values cause browsers to
+fail the CORS check (visible as a CORS error from Vercel).
 """
 
 import base64
@@ -30,12 +30,6 @@ from backend.models.predict import predict_ecg_bytes
 from backend.services.metrics_service import get_model_metrics
 from backend.services.model_loader import get_model
 
-
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-}
 
 # Cap the number of points sent back for charting; the frontend only needs
 # enough resolution to render the waveform smoothly, not every raw sample.
@@ -54,7 +48,7 @@ class ApiError(Exception):
 def _response(status_code, body):
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json", **CORS_HEADERS},
+        "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body),
     }
 
@@ -175,8 +169,11 @@ def _route_key(event):
 def lambda_handler(event, context):
     method, path = _route_key(event)
 
+    # OPTIONS preflight is answered by the Function URL CORS layer and should
+    # not need a handler response. Keep a minimal no-content fallback in case
+    # a client hits OPTIONS without going through that layer.
     if method == "OPTIONS":
-        return {"statusCode": 204, "headers": CORS_HEADERS, "body": ""}
+        return {"statusCode": 204, "headers": {}, "body": ""}
 
     handler = ROUTES.get((method, path))
     if handler is None:
