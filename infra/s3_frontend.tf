@@ -14,6 +14,9 @@ locals {
 
 resource "aws_s3_bucket" "frontend" {
   bucket = local.frontend_bucket_name
+  # Portfolio demos create/destroy often; allow terraform destroy even when
+  # the Vite build has been synced into the bucket.
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {

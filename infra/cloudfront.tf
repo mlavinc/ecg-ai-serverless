@@ -38,9 +38,13 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
 
 resource "aws_cloudfront_distribution" "this" {
   enabled             = true
+  is_ipv6_enabled     = true
   default_root_object = "index.html"
   price_class         = var.cloudfront_price_class
   comment             = "${var.project_name} frontend + API"
+
+  # Ensure the Function URL is publicly invokable before CF starts proxying.
+  depends_on = [aws_lambda_permission.function_url_public]
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -57,6 +61,9 @@ resource "aws_cloudfront_distribution" "this" {
       https_port             = 443
       origin_protocol_policy = "https-only"
       origin_ssl_protocols   = ["TLSv1.2"]
+      # Match Lambda timeout so long cold-start + inference are not cut by CF.
+      origin_read_timeout      = var.lambda_timeout
+      origin_keepalive_timeout = 5
     }
   }
 
@@ -80,16 +87,12 @@ resource "aws_cloudfront_distribution" "this" {
     compress                 = true
   }
 
-  # SPA routing: unknown paths (client-side routes) and S3 "not found"
-  # both fall back to index.html so React Router can take over.
+  # SPA routing for the S3 origin: OAC missing-object responses are typically
+  # 403, not 404. Map 403 -> index.html for client-side routes.
+  # Do NOT map 404 globally: custom error responses are distribution-wide and
+  # would rewrite legitimate Lambda /api/* 404 JSON into HTML.
   custom_error_response {
     error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
     response_code      = 200
     response_page_path = "/index.html"
   }

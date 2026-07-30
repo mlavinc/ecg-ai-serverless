@@ -17,10 +17,10 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
 
   return (
-    <header className="border-border/60 bg-background/80 sticky top-0 z-40 border-b backdrop-blur-md">
+    <header className="border-border/80 bg-surface/80 sticky top-0 z-40 border-b backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
         <NavLink to="/" className="flex items-center gap-2 font-semibold">
-          <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg">
+          <span className="bg-primary/20 text-foreground flex size-7 items-center justify-center rounded-lg">
             <Activity className="size-4" />
           </span>
           <span className="hidden sm:inline">ECG AI</span>

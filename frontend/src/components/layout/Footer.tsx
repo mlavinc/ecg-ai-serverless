@@ -16,7 +16,7 @@ function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export function Footer() {
   return (
-    <footer className="border-border/60 mt-16 border-t">
+    <footer className="border-border/80 mt-16 border-t bg-surface/50">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm sm:flex-row sm:px-6">
         <p className="text-muted-foreground text-center sm:text-left">
           ECG AI &mdash; portfolio project. Technical demonstration only, not a

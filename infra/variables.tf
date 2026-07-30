@@ -33,6 +33,21 @@ variable "lambda_zip_path" {
   default     = "../lambda.zip"
 }
 
+variable "lambda_s3_key" {
+  description = "Object key for the Lambda ZIP inside the Terraform-managed artifacts bucket."
+  type        = string
+  default     = "lambda/lambda.zip"
+}
+
+variable "artifacts_bucket_suffix" {
+  description = <<-EOT
+    Optional fixed suffix for the Lambda artifacts bucket name. If empty, a
+    random suffix is generated once and persisted in state.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "lambda_memory_size" {
   description = "Memory (MB) allocated to the inference Lambda."
   type        = number
@@ -40,9 +55,17 @@ variable "lambda_memory_size" {
 }
 
 variable "lambda_timeout" {
-  description = "Timeout (seconds) for the inference Lambda."
+  description = <<-EOT
+    Timeout (seconds) for the inference Lambda. Also used as the CloudFront
+    custom-origin read timeout for /api/* (AWS max 60 without a quota increase).
+  EOT
   type        = number
   default     = 30
+
+  validation {
+    condition     = var.lambda_timeout >= 3 && var.lambda_timeout <= 60
+    error_message = "lambda_timeout must be between 3 and 60 seconds (CloudFront origin read timeout limit)."
+  }
 }
 
 variable "log_retention_days" {

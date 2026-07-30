@@ -8,45 +8,50 @@ and torn down afterwards.
 CloudFront
 ├── /*      → S3 (private, via Origin Access Control)   [Frontend]
 └── /api/*  → Lambda Function URL                        [Backend]
+                    ↑ code from artifacts S3 bucket (ZIP staged here)
                     ↓
               Random Forest Model (S3-cached in /tmp)
 ```
 
+The Lambda ZIP (~57 MB) exceeds the ~50 MB **direct** upload limit for
+`CreateFunction`, so Terraform stages it in a managed artifacts bucket and
+creates the function with `s3_bucket` / `s3_key` (same approach as the
+original CLI deploy: `aws s3 cp lambda.zip ...` then create-function from S3).
+
 No API Gateway, no Route 53 hosted zone, no ACM certificate, no NAT gateway,
-no always-on compute. See the root README for the cost analysis behind these
-choices.
+no always-on compute.
+
+**Preferred path for demos:** use the one-command scripts documented in
+[`../DEPLOY.md`](../DEPLOY.md) (`scripts/deploy.*` / `scripts/destroy.*`).
+This directory remains the single source of truth for infrastructure.
 
 ## Prerequisites
 
 * Terraform >= 1.6
 * AWS credentials with permission to manage S3, CloudFront, Lambda and IAM
-  (`aws configure` or environment variables)
-* The Lambda deployment artifact built once via:
+* Optional: `terraform.tfvars` copied from `terraform.tfvars.example`
 
-  ```bash
-  python scripts/build_package.py
-  ```
+The Lambda ZIP and frontend sync are normally produced by the deploy scripts.
+If applying manually:
 
-  This produces `../lambda.zip` (relative to this directory), which
-  `lambda.tf` packages as the function code. Re-run it whenever
-  `backend/` changes, before `terraform apply`.
+```bash
+python scripts/build_package.py   # from repo root → ../lambda.zip
+```
 
-* The model already uploaded to the **existing** S3 bucket referenced by
-  `var.model_bucket_name` (see root README, "Deployment"). Terraform does
-  **not** create or manage this bucket -- it was provisioned manually and is
-  only referenced as a read-only data dependency (least-privilege IAM).
+The trained model lives in an **existing** S3 bucket referenced by
+`var.model_bucket_name`. Terraform does **not** create or destroy that bucket.
 
-## Usage
+## Manual usage
 
 ```bash
 cd infra
+cp terraform.tfvars.example terraform.tfvars   # optional
 terraform init
 terraform plan
 terraform apply
 ```
 
-After `apply`, sync the built frontend into the new bucket and invalidate
-the CDN cache:
+Then sync the frontend and invalidate (or use `scripts/deploy.*` which does this):
 
 ```bash
 cd ../frontend
@@ -61,28 +66,43 @@ Open the app:
 
 ```bash
 terraform output cloudfront_domain_name
+# Health: $(terraform output -raw cloudfront_domain_name)/api/health
 ```
 
 ## Tearing down
+
+Prefer:
+
+```bash
+../scripts/destroy.sh --yes    # or .\scripts\destroy.ps1 -Yes
+```
+
+Or manually:
 
 ```bash
 cd infra
 terraform destroy
 ```
 
-This removes the S3 bucket, CloudFront distribution, Lambda function/Function
-URL, and IAM role -- everything Terraform created. The existing model bucket
-(`var.model_bucket_name`) is untouched, since Terraform never took ownership
-of it.
+The frontend bucket has `force_destroy = true` so destroy succeeds even when
+build artifacts are present. The external model bucket is untouched.
+
+## Variables
+
+See `variables.tf` and `terraform.tfvars.example`. Notable knobs:
+
+| Variable | Purpose |
+| --- | --- |
+| `project_name` | Prefix for resource names |
+| `aws_region` | Lambda + frontend bucket region |
+| `model_bucket_name` / `model_key` | External model object |
+| `cloudfront_price_class` | Default `PriceClass_100` |
+| `lambda_timeout` | Lambda + CloudFront origin read timeout (max 60) |
 
 ## Notes
 
-* **CloudFront propagation**: distribution edits (including first creation)
-  typically take 3-10 minutes to fully propagate globally.
-* **Cold starts**: the first `/api/*` request after `apply` (or after a Lambda
-  has been idle) downloads the model from S3 into `/tmp`, adding a few
-  hundred ms; subsequent warm invocations reuse the cached model.
-* **Custom domain**: intentionally not configured, to keep this at a strict
-  $0. Re-introducing one only requires adding an `aws_acm_certificate` (in
-  the `us_east_1` provider alias already declared in `versions.tf`) and a
-  `viewer_certificate.acm_certificate_arn` on the distribution.
+* **CloudFront propagation**: first creation often takes 3–10 minutes; deploy
+  scripts retry `/api/health` for this reason.
+* **Cold starts**: first invocation after idle downloads the model into `/tmp`.
+* **Custom domain**: not configured (keeps cost at $0). A `us_east_1` provider
+  alias is declared in `versions.tf` if you add ACM later.

@@ -24,10 +24,12 @@ export function EcgSignalChart({ values, samplingRate, height = 260 }: EcgSignal
     if (!containerRef.current) return
 
     const time = values.map((_, i) => i / samplingRate)
-    const isDark = theme === 'dark'
-    const lineColor = isDark ? '#e3a98d' : '#cc7a58'
-    const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)'
-    const textColor = isDark ? '#b8ae9f' : '#9a8f80'
+    const styles = getComputedStyle(document.documentElement)
+    const css = (name: string, fallback: string) =>
+      styles.getPropertyValue(name).trim() || fallback
+    const lineColor = css('--chart-ecg', css('--primary', '#7aa2d8'))
+    const gridColor = css('--chart-grid', 'rgb(30 41 59 / 5%)')
+    const textColor = css('--chart-axis', css('--muted-foreground', '#64748b'))
 
     const opts: uPlot.Options = {
       width: containerRef.current.clientWidth,

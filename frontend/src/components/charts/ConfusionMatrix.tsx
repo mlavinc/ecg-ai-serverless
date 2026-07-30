@@ -44,8 +44,8 @@ export function ConfusionMatrix({ labels, matrix }: ConfusionMatrixProps) {
                     )}
                     style={{
                       backgroundColor: isDiagonal
-                        ? `color-mix(in oklch, var(--primary) ${20 + intensity * 80}%, transparent)`
-                        : `color-mix(in oklch, var(--destructive) ${intensity * 60}%, transparent)`,
+                        ? `color-mix(in srgb, var(--primary) ${20 + intensity * 80}%, transparent)`
+                        : `color-mix(in srgb, var(--error) ${intensity * 55}%, transparent)`,
                     }}
                   >
                     {value}

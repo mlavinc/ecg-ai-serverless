@@ -202,7 +202,10 @@ ECG_AI_Serverless/
 │
 ├── infra/                      # Terraform: S3, OAC, CloudFront, Lambda, IAM
 │
+├── DEPLOY.md                   # one-command deploy / destroy runbook
 ├── scripts/
+│   ├── deploy.ps1 / deploy.sh  # portfolio deploy (terraform + frontend + health)
+│   ├── destroy.ps1 / destroy.sh
 │   ├── build_dataset.py        # re-extract features from ECG_DB
 │   ├── train_model.py
 │   ├── predict_sample.py
@@ -300,56 +303,28 @@ for a quick manual check.
 
 ## Deploying to AWS
 
-1. **Build the Lambda artifact**
+**One-command demo lifecycle** (recommended):
 
-   ```bash
-   python scripts/build_package.py
-   ```
+```powershell
+# Windows
+.\scripts\deploy.ps1
+.\scripts\destroy.ps1 -Yes
+```
 
-   > The zip is created in Python with forward-slash paths on purpose. Do
-   > **not** use PowerShell 5.1 `Compress-Archive` — it writes backslash
-   > paths that AWS Lambda (Linux) treats as literal filenames.
+```bash
+# Linux / macOS
+./scripts/deploy.sh
+./scripts/destroy.sh --yes
+```
 
-2. **Upload the model to S3** (once, and after every retrain)
+The deploy script builds the Lambda ZIP, ensures the model object is in S3,
+runs `terraform apply`, syncs the frontend, invalidates CloudFront, health-
+checks `/api/health`, and prints the CloudFront URL plus API endpoints.
+Destroy tears down everything Terraform manages (the external model bucket is
+left intact). Full runbook: [`DEPLOY.md`](DEPLOY.md).
 
-   ```bash
-   aws s3 cp data/models/random_forest_final.joblib \
-       s3://ecg-ai-models-mlavinc/random_forest_final.joblib --region sa-east-1
-   ```
-
-3. **Provision the infrastructure**
-
-   ```bash
-   cd infra
-   terraform init
-   terraform apply
-   ```
-
-4. **Deploy the frontend build**
-
-   ```bash
-   cd frontend
-   npm run build
-   aws s3 sync dist/ "s3://$(terraform -chdir=../infra output -raw frontend_bucket_name)" --delete
-   aws cloudfront create-invalidation \
-     --distribution-id "$(terraform -chdir=../infra output -raw cloudfront_distribution_id)" \
-     --paths "/*"
-   ```
-
-5. **Open the app**
-
-   ```bash
-   terraform -chdir=infra output cloudfront_domain_name
-   ```
-
-6. **Tear it down when you're done demoing**
-
-   ```bash
-   terraform -chdir=infra destroy
-   ```
-
-Full details, cost analysis, and the reasoning behind every infrastructure
-choice: [`infra/README.md`](infra/README.md).
+Infrastructure source of truth: [`infra/`](infra/) · details:
+[`infra/README.md`](infra/README.md).
 
 ### Free Tier notes
 
@@ -377,6 +352,9 @@ Next:
 
 * CI for automated package builds + Terraform plan checks
 * Re-run training against the full PhysioNet dataset to populate the confusion matrix / per-class metrics
+
+Deployment layer (scripts + Terraform operability) is documented in
+[`DEPLOY.md`](DEPLOY.md).
 
 ---
 
