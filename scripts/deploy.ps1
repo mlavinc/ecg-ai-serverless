@@ -1,17 +1,15 @@
 <#
 .SYNOPSIS
-  One-command portfolio deploy: build artifacts, terraform apply, sync frontend,
-  invalidate CloudFront, health-check the API, print URLs.
+  Deploy the AWS inference backend: build Lambda ZIP, terraform apply, print Function URL.
 
 .DESCRIPTION
-  Idempotent: safe to re-run after a partial failure. Infrastructure names come
-  from Terraform variables / outputs.
+  Idempotent. Frontend is hosted on Vercel separately (set VITE_API_URL to the
+  printed Function URL). Does not sync any frontend assets to AWS.
 #>
 $ErrorActionPreference = "Stop"
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Infra = Join-Path $Root "infra"
-$Frontend = Join-Path $Root "frontend"
 $ModelLocal = Join-Path $Root "data\models\random_forest_final.joblib"
 $LambdaZip = Join-Path $Root "lambda.zip"
 
@@ -61,7 +59,7 @@ function Get-TfOutput([string]$Name) {
 }
 
 # --- Prerequisites ---
-foreach ($cmd in @("terraform", "aws", "npm", "python")) {
+foreach ($cmd in @("terraform", "aws", "python")) {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
     throw "Required command not found on PATH: $cmd"
   }
@@ -74,9 +72,10 @@ $AwsRegion = if ($env:AWS_REGION) { $env:AWS_REGION } else { Get-TfVarOrDefault 
 $ModelBucket = if ($env:MODEL_BUCKET) { $env:MODEL_BUCKET } else { Get-TfVarOrDefault "model_bucket_name" "ecg-ai-models-mlavinc" }
 $ModelKey = if ($env:MODEL_KEY) { $env:MODEL_KEY } else { Get-TfVarOrDefault "model_key" "random_forest_final.joblib" }
 
-Write-Host "ECG AI - portfolio deploy"
+Write-Host "ECG-AI - AWS backend deploy"
 Write-Host "  region : $AwsRegion"
 Write-Host ("  model  : s3://{0}/{1}" -f $ModelBucket, $ModelKey)
+Write-Host "  frontend: Vercel (set VITE_API_URL to the Function URL below)"
 
 # --- 1. Build Lambda ZIP ---
 Write-Step "Building Lambda package (scripts/build_package.py)"
@@ -111,54 +110,21 @@ else {
   Write-Host "  Model already present (skipping upload)."
 }
 
-# --- 3. Terraform (idempotent) ---
+# --- 3. Terraform ---
 Write-Step "terraform init"
 Invoke-Tf @("init", "-input=false", "-reconfigure")
 
 Write-Step "terraform apply"
 Invoke-Tf @("apply", "-auto-approve", "-input=false", "-refresh=true")
 
-$CfUrl = Get-TfOutput "cloudfront_domain_name"
-$DistId = Get-TfOutput "cloudfront_distribution_id"
-$FrontendBucket = Get-TfOutput "frontend_bucket_name"
-$HealthUrl = "{0}/api/health" -f $CfUrl
+$FunctionUrl = Get-TfOutput "lambda_function_url"
+$FunctionUrl = $FunctionUrl.TrimEnd("/")
+$HealthUrl = "{0}/health" -f $FunctionUrl
 
-Write-Step ("Waiting for CloudFront distribution {0} to deploy" -f $DistId)
-& aws cloudfront wait distribution-deployed --id $DistId
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  Warning: wait timed out or failed; continuing with sync/health checks."
-}
-
-# --- 4. Frontend build + sync ---
-Write-Step "Building frontend (npm run build)"
-Push-Location $Frontend
-try {
-  if (-not (Test-Path "node_modules")) {
-    & npm install
-    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
-  }
-  & npm run build
-  if ($LASTEXITCODE -ne 0) { throw "npm run build failed" }
-}
-finally {
-  Pop-Location
-}
-
-$Dist = Join-Path $Frontend "dist"
-if (-not (Test-Path $Dist)) { throw "Frontend dist/ not found after build" }
-
-Write-Step ("Syncing frontend to s3://{0}" -f $FrontendBucket)
-& aws s3 sync $Dist ("s3://{0}/" -f $FrontendBucket) --delete --region $AwsRegion
-if ($LASTEXITCODE -ne 0) { throw "aws s3 sync failed" }
-
-Write-Step "Invalidating CloudFront cache"
-& aws cloudfront create-invalidation --distribution-id $DistId --paths "/*" --region $AwsRegion | Out-Null
-if ($LASTEXITCODE -ne 0) { throw "CloudFront invalidation failed" }
-
-# --- 5. Health check (cold start + CDN) ---
+# --- 4. Health check ---
 Write-Step "Post-deploy health check: $HealthUrl"
 $ok = $false
-$maxAttempts = 18
+$maxAttempts = 12
 for ($i = 1; $i -le $maxAttempts; $i++) {
   try {
     $resp = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 45
@@ -172,7 +138,7 @@ for ($i = 1; $i -le $maxAttempts; $i++) {
   catch {
     Write-Host ("  Attempt {0}/{1}: {2}" -f $i, $maxAttempts, $_.Exception.Message)
   }
-  Start-Sleep -Seconds 10
+  Start-Sleep -Seconds 8
 }
 
 if (-not $ok) {
@@ -182,9 +148,11 @@ if (-not $ok) {
 Write-Host ""
 Write-Host "Deploy succeeded." -ForegroundColor Green
 Write-Host ""
-Write-Host "  App (CloudFront) : $CfUrl"
-Write-Host "  API health       : $HealthUrl"
-Write-Host ("  API metrics      : {0}/api/metrics" -f $CfUrl)
-Write-Host ("  API predict      : {0}/api/predict" -f $CfUrl)
+Write-Host "  Lambda Function URL : $FunctionUrl/"
+Write-Host "  API health          : $HealthUrl"
+Write-Host ("  API metrics         : {0}/metrics" -f $FunctionUrl)
+Write-Host ("  API predict         : {0}/predict" -f $FunctionUrl)
+Write-Host ""
+Write-Host "  Vercel env          : VITE_API_URL=$FunctionUrl"
 Write-Host ""
 Write-Host 'Tear down when finished:  .\scripts\destroy.ps1'

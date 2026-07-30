@@ -13,17 +13,15 @@ runs inference inside an AWS Lambda function with zero always-on
 infrastructure.
 
 ```
-React (Vite) ──► CloudFront ──┬──► S3 (private, via OAC)      [Frontend]
-                               └──► Lambda Function URL         [Backend]
-                                          ↓
-                                  Random Forest Model
-                                  (cached in /tmp, sourced from S3)
+Vercel (React / Vite) ──► Lambda Function URL ──► Random Forest Model
+                                                       (cached in /tmp, from S3)
 ```
 
-No API Gateway, no servers, no containers, no idle cost: everything can be
-created with `terraform apply` and fully destroyed with `terraform destroy`
-between demos. See [`infra/README.md`](infra/README.md) for the
-infrastructure and [`frontend/`](frontend) for the React app.
+No API Gateway, no CloudFront for the frontend, no always-on compute: the
+AWS backend can be created with `terraform apply` and destroyed with
+`terraform destroy` between demos. The UI is hosted on Vercel. See
+[`infra/README.md`](infra/README.md), [`DEPLOY.md`](DEPLOY.md), and
+[`frontend/`](frontend).
 
 ---
 
@@ -75,8 +73,9 @@ Class distribution:
 
 **Infrastructure**
 
-* Terraform (S3, CloudFront + Origin Access Control, Lambda + Function URL, IAM)
-* Amazon CloudFront as the single entry point for both frontend and API
+* Terraform (artifacts S3, Lambda + Function URL, IAM, CloudWatch Logs)
+* Frontend on Vercel (`VITE_API_URL` → Lambda Function URL)
+* Model object in an external S3 bucket (not managed by Terraform)
 
 Removed from the Lambda runtime to fit the 250 MB ZIP limit: `wfdb`
 (replaced by a minimal numpy format-16 reader) and `neurokit2` + `matplotlib`
@@ -125,9 +124,8 @@ source of truth for training and inference) and
 
 ## API contract
 
-Exposed at `/api/*` through CloudFront (same-origin as the frontend — no
-CORS needed) or directly via the Lambda Function URL. See
-`backend/services/lambda_handler.py`.
+Exposed directly on the Lambda Function URL (paths below). The Vercel
+frontend sets `VITE_API_URL` to that URL. See `backend/services/lambda_handler.py`.
 
 | Route | Method | Description |
 | --- | --- | --- |
@@ -200,11 +198,11 @@ ECG_AI_Serverless/
 │       ├── services/api/        # axios client + Zod schemas
 │       ├── types/ · utils/
 │
-├── infra/                      # Terraform: S3, OAC, CloudFront, Lambda, IAM
+├── infra/                      # Terraform: artifacts S3, Lambda Function URL, IAM
 │
-├── DEPLOY.md                   # one-command deploy / destroy runbook
+├── DEPLOY.md                   # one-command AWS backend deploy / destroy runbook
 ├── scripts/
-│   ├── deploy.ps1 / deploy.sh  # portfolio deploy (terraform + frontend + health)
+│   ├── deploy.ps1 / deploy.sh  # build Lambda ZIP + terraform apply + print Function URL
 │   ├── destroy.ps1 / destroy.sh
 │   ├── build_dataset.py        # re-extract features from ECG_DB
 │   ├── train_model.py
@@ -248,15 +246,11 @@ This project removes both **without changing the model's role**:
 
 ## Why no API Gateway
 
-Lambda Function URLs give a direct HTTPS endpoint to the function with zero
-extra cost beyond the Lambda invocation itself. API Gateway's free tier only
-lasts 12 months on new AWS accounts — Function URLs, combined with
-CloudFront and Lambda's *always-free* tiers, keep this project at **$0
-indefinitely**, not just during the first year. CloudFront proxies `/api/*`
-to the Function URL, so the frontend and backend share one domain (no CORS
-handling needed in the deployed app either). See
-[`infra/README.md`](infra/README.md) for the full architecture and cost
-breakdown.
+Lambda Function URLs give a direct HTTPS endpoint with zero extra cost beyond
+the Lambda invocation itself. API Gateway's free tier only lasts 12 months on
+new AWS accounts; Function URLs plus Lambda's always-free tier keep the
+backend near **$0** for portfolio demos. The frontend is hosted on Vercel and
+calls the Function URL with CORS enabled. See [`infra/README.md`](infra/README.md).
 
 ---
 
@@ -294,16 +288,14 @@ npm run dev
 ```
 
 By default `/api/*` is proxied (see `vite.config.ts`) to
-`http://localhost:9000` — point `VITE_DEV_API_PROXY_TARGET` at a locally
-invoked Lambda (e.g. via `sam local start-lambda` or the AWS Lambda Runtime
-Interface Emulator), or set `VITE_API_BASE_URL` to a deployed Function URL
-for a quick manual check.
+`http://localhost:9000`. For a deployed backend, set `VITE_API_URL` to the
+Lambda Function URL (see `frontend/.env.example`).
 
 ---
 
-## Deploying to AWS
+## Deploying
 
-**One-command demo lifecycle** (recommended):
+**AWS backend** (recommended one-command path):
 
 ```powershell
 # Windows
@@ -318,10 +310,10 @@ for a quick manual check.
 ```
 
 The deploy script builds the Lambda ZIP, ensures the model object is in S3,
-runs `terraform apply`, syncs the frontend, invalidates CloudFront, health-
-checks `/api/health`, and prints the CloudFront URL plus API endpoints.
-Destroy tears down everything Terraform manages (the external model bucket is
-left intact). Full runbook: [`DEPLOY.md`](DEPLOY.md).
+runs `terraform apply`, health-checks `{function_url}/health`, and prints the
+Function URL. Set that value as `VITE_API_URL` on Vercel. Destroy tears down
+Terraform-managed AWS resources (external model bucket and Vercel stay intact).
+Full runbook: [`DEPLOY.md`](DEPLOY.md).
 
 Infrastructure source of truth: [`infra/`](infra/) · details:
 [`infra/README.md`](infra/README.md).
@@ -330,8 +322,7 @@ Infrastructure source of truth: [`infra/`](infra/) · details:
 
 * `python3.11` ZIP (no container, no ECR) → no ECR storage cost.
 * No API Gateway → no 12-month-only free tier cliff.
-* No Route 53 hosted zone / ACM certificate → the default `*.cloudfront.net`
-  domain is used, keeping this at a strict $0.
+* No CloudFront / Route 53 / ACM for the app → frontend on Vercel hobby tier.
 * 1024 MB memory + warm-start model caching in `/tmp` keeps each invocation
   well within the Lambda always-free tier for personal/demo use.
 
@@ -346,7 +337,8 @@ Completed:
 * Dependency-light Lambda ZIP (numpy WFDB reader, scipy-only HRV, no pandas at inference)
 * HTTP router (`/health`, `/metrics`, `/predict`) ready for a Lambda Function URL
 * React + Vite frontend: Analyze, Model Performance, How It Works, About
-* Terraform infrastructure (S3 + OAC + CloudFront + Lambda Function URL + IAM), `terraform validate`-clean
+* Terraform infrastructure (artifacts S3 + Lambda Function URL + IAM), `terraform validate`-clean
+* Frontend prepared for Vercel (`VITE_API_URL`)
 
 Next:
 

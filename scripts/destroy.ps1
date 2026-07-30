@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  One-command teardown of the portfolio demo environment (terraform destroy).
+  Tear down the AWS inference backend (terraform destroy).
 
 .DESCRIPTION
-  Removes everything Terraform manages (frontend S3, artifacts S3, CloudFront,
-  Lambda + Function URL, IAM). Does NOT delete the external model bucket.
+  Removes artifacts S3, Lambda + Function URL, and IAM. Does NOT delete the
+  external model bucket. Frontend on Vercel is unmanaged by this script.
 
 .PARAMETER Yes
   Skip the interactive confirmation (for scripted demos).
@@ -22,13 +22,14 @@ if (-not (Get-Command terraform -ErrorAction SilentlyContinue)) {
   throw "Required command not found on PATH: terraform"
 }
 
-Write-Host "ECG AI - portfolio destroy"
-Write-Host "  This removes CloudFront, frontend/artifacts S3 buckets, Lambda, and IAM"
-Write-Host "  created by Terraform. The external model bucket is left untouched."
+Write-Host "ECG-AI - AWS backend destroy"
+Write-Host "  This removes the artifacts S3 bucket, Lambda, Function URL, and IAM"
+Write-Host "  created by Terraform. The external model bucket and Vercel frontend"
+Write-Host "  are left untouched."
 Write-Host ""
 
 if (-not $Yes) {
-  $confirm = Read-Host "Type 'yes' to destroy the demo environment"
+  $confirm = Read-Host "Type 'yes' to destroy the backend"
   if ($confirm -ne "yes") {
     Write-Host "Aborted."
     exit 0
@@ -50,5 +51,5 @@ finally {
 }
 
 Write-Host ""
-Write-Host "Destroy succeeded. Demo environment is gone." -ForegroundColor Green
+Write-Host "Destroy succeeded. AWS backend is gone." -ForegroundColor Green
 Write-Host "Redeploy anytime with:  .\scripts\deploy.ps1"

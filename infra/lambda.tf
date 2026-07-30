@@ -1,11 +1,9 @@
-# Inference function, exposed directly via a Lambda Function URL -- no API
-# Gateway. CloudFront (see cloudfront.tf) fronts this URL under /api/* so
-# the browser only ever talks to one HTTPS domain.
+# Inference function, exposed via a Lambda Function URL (no API Gateway).
+# The React frontend is hosted on Vercel and calls this URL directly
+# (VITE_API_URL). CORS is enabled on the Function URL for browser clients.
 #
 # Code packaging: the ZIP is staged in S3 (see s3_artifacts.tf) because it
-# exceeds the ~50 MB direct-upload limit for CreateFunction. This matches
-# the project's original AWS CLI deployment path (aws s3 cp lambda.zip ...
-# then create-function --code S3Bucket=...,S3Key=...).
+# exceeds the ~50 MB direct-upload limit for CreateFunction.
 
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${var.project_name}-inference"

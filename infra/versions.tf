@@ -25,19 +25,3 @@ provider "aws" {
     }
   }
 }
-
-# CloudFront-related ACM certificates must live in us-east-1. Not used today
-# (the default *.cloudfront.net certificate is used to keep this at $0 -- no
-# Route53 hosted zone, no ACM certificate), but kept available for a future
-# custom domain without restructuring providers.
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
-
-  default_tags {
-    tags = {
-      Project   = var.project_name
-      ManagedBy = "terraform"
-    }
-  }
-}

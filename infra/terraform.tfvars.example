@@ -11,17 +11,11 @@ model_key         = "random_forest_final.joblib"
 # Path to the Lambda ZIP relative to the infra/ directory.
 # Terraform uploads it to the artifacts bucket (S3) — required because the
 # ZIP exceeds the ~50 MB direct CreateFunction upload limit.
-lambda_zip_path          = "../lambda.zip"
-lambda_s3_key            = "lambda/lambda.zip"
-artifacts_bucket_suffix  = ""
+lambda_zip_path         = "../lambda.zip"
+lambda_s3_key           = "lambda/lambda.zip"
+artifacts_bucket_suffix = ""
 
 lambda_memory_size = 1024
-# Must stay <= 60 (CloudFront origin_read_timeout upper bound without quota increase).
-lambda_timeout = 30
+lambda_timeout     = 30
 
-log_retention_days     = 14
-cloudfront_price_class = "PriceClass_100"
-
-# Leave empty to get a random suffix (persisted in state), or set a fixed
-# suffix for stable bucket names across apply/destroy cycles.
-frontend_bucket_suffix = ""
+log_retention_days = 14

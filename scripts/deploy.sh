@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# One-command portfolio deploy. Idempotent: safe to re-run after partial failure.
+# Deploy the AWS inference backend. Frontend is hosted on Vercel separately.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INFRA="$ROOT/infra"
-FRONTEND="$ROOT/frontend"
 MODEL_LOCAL="$ROOT/data/models/random_forest_final.joblib"
 LAMBDA_ZIP="$ROOT/lambda.zip"
 
@@ -42,7 +41,7 @@ tfvar_or_default() {
   printf '%s' "$default"
 }
 
-for cmd in terraform aws npm python; do
+for cmd in terraform aws python; do
   command -v "$cmd" >/dev/null || { echo "Required command not found: $cmd" >&2; exit 1; }
 done
 [[ -f "$MODEL_LOCAL" ]] || { echo "Model file not found: $MODEL_LOCAL" >&2; exit 1; }
@@ -51,9 +50,10 @@ AWS_REGION="${AWS_REGION:-$(tfvar_or_default aws_region sa-east-1)}"
 MODEL_BUCKET="${MODEL_BUCKET:-$(tfvar_or_default model_bucket_name ecg-ai-models-mlavinc)}"
 MODEL_KEY="${MODEL_KEY:-$(tfvar_or_default model_key random_forest_final.joblib)}"
 
-echo "ECG AI - portfolio deploy"
+echo "ECG-AI - AWS backend deploy"
 echo "  region : $AWS_REGION"
 echo "  model  : s3://${MODEL_BUCKET}/${MODEL_KEY}"
+echo "  frontend: Vercel (set VITE_API_URL to the Function URL below)"
 
 step "Building Lambda package (scripts/build_package.py)"
 (cd "$ROOT" && python scripts/build_package.py)
@@ -78,43 +78,24 @@ tf init -input=false -reconfigure
 step "terraform apply"
 tf apply -auto-approve -input=false -refresh=true
 
-CF_URL="$(tf_output cloudfront_domain_name)"
-DIST_ID="$(tf_output cloudfront_distribution_id)"
-FRONTEND_BUCKET="$(tf_output frontend_bucket_name)"
-HEALTH_URL="${CF_URL}/api/health"
-
-step "Waiting for CloudFront distribution ${DIST_ID} to deploy"
-if ! aws cloudfront wait distribution-deployed --id "$DIST_ID"; then
-  echo "  Warning: wait timed out or failed; continuing with sync/health checks."
-fi
-
-step "Building frontend (npm run build)"
-(
-  cd "$FRONTEND"
-  [[ -d node_modules ]] || npm install
-  npm run build
-)
-
-step "Syncing frontend to s3://${FRONTEND_BUCKET}"
-aws s3 sync "$FRONTEND/dist/" "s3://${FRONTEND_BUCKET}/" --delete --region "$AWS_REGION"
-
-step "Invalidating CloudFront cache"
-aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*" --region "$AWS_REGION" >/dev/null
+FUNCTION_URL="$(tf_output lambda_function_url)"
+FUNCTION_URL="${FUNCTION_URL%/}"
+HEALTH_URL="${FUNCTION_URL}/health"
 
 step "Post-deploy health check: ${HEALTH_URL}"
 ok=0
-for i in $(seq 1 18); do
+for i in $(seq 1 12); do
   if body="$(curl -fsS --max-time 45 "$HEALTH_URL" 2>/dev/null)" && echo "$body" | grep -q '"status"[[:space:]]*:[[:space:]]*"ok"'; then
-    echo "  Attempt $i/18: OK ($body)"
+    echo "  Attempt $i/12: OK ($body)"
     ok=1
     break
   fi
-  echo "  Attempt $i/18: not ready yet"
-  sleep 10
+  echo "  Attempt $i/12: not ready yet"
+  sleep 8
 done
 
 if [[ "$ok" -ne 1 ]]; then
-  echo "Health check failed after 18 attempts. Try manually: $HEALTH_URL" >&2
+  echo "Health check failed after 12 attempts. Try manually: $HEALTH_URL" >&2
   exit 1
 fi
 
@@ -122,10 +103,12 @@ cat <<EOF
 
 Deploy succeeded.
 
-  App (CloudFront) : ${CF_URL}
-  API health       : ${HEALTH_URL}
-  API metrics      : ${CF_URL}/api/metrics
-  API predict      : ${CF_URL}/api/predict
+  Lambda Function URL : ${FUNCTION_URL}/
+  API health          : ${HEALTH_URL}
+  API metrics         : ${FUNCTION_URL}/metrics
+  API predict         : ${FUNCTION_URL}/predict
+
+  Vercel env          : VITE_API_URL=${FUNCTION_URL}
 
 Tear down when finished:  ./scripts/destroy.sh
 EOF

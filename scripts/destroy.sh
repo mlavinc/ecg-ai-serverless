@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One-command teardown. Does NOT delete the external model bucket.
-# Usage: ./scripts/destroy.sh [--yes]
+# Tear down the AWS inference backend. Does NOT delete the external model bucket
+# or the Vercel frontend. Usage: ./scripts/destroy.sh [--yes]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,13 +16,14 @@ done
 
 command -v terraform >/dev/null || { echo "Required command not found: terraform" >&2; exit 1; }
 
-echo "ECG AI - portfolio destroy"
-echo "  This removes CloudFront, frontend/artifacts S3 buckets, Lambda, and IAM"
-echo "  created by Terraform. The external model bucket is left untouched."
+echo "ECG-AI - AWS backend destroy"
+echo "  This removes the artifacts S3 bucket, Lambda, Function URL, and IAM"
+echo "  created by Terraform. The external model bucket and Vercel frontend"
+echo "  are left untouched."
 echo ""
 
 if [[ "$YES" -ne 1 ]]; then
-  read -r -p "Type 'yes' to destroy the demo environment: " confirm
+  read -r -p "Type 'yes' to destroy the backend: " confirm
   if [[ "$confirm" != "yes" ]]; then
     echo "Aborted."
     exit 0
@@ -38,6 +39,6 @@ terraform destroy -auto-approve -input=false -refresh=true
 
 cat <<EOF
 
-Destroy succeeded. Demo environment is gone.
+Destroy succeeded. AWS backend is gone.
 Redeploy anytime with:  ./scripts/deploy.sh
 EOF

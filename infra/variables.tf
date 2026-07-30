@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region to deploy the Lambda function and frontend bucket in."
+  description = "AWS region for the Lambda function and artifacts bucket."
   type        = string
   default     = "sa-east-1"
 }
@@ -55,16 +55,13 @@ variable "lambda_memory_size" {
 }
 
 variable "lambda_timeout" {
-  description = <<-EOT
-    Timeout (seconds) for the inference Lambda. Also used as the CloudFront
-    custom-origin read timeout for /api/* (AWS max 60 without a quota increase).
-  EOT
+  description = "Timeout (seconds) for the inference Lambda."
   type        = number
   default     = 30
 
   validation {
-    condition     = var.lambda_timeout >= 3 && var.lambda_timeout <= 60
-    error_message = "lambda_timeout must be between 3 and 60 seconds (CloudFront origin read timeout limit)."
+    condition     = var.lambda_timeout >= 3 && var.lambda_timeout <= 900
+    error_message = "lambda_timeout must be between 3 and 900 seconds."
   }
 }
 
@@ -72,25 +69,4 @@ variable "log_retention_days" {
   description = "CloudWatch Logs retention for the Lambda function."
   type        = number
   default     = 14
-}
-
-variable "cloudfront_price_class" {
-  description = <<-EOT
-    Limits which CloudFront edge locations serve this distribution.
-    PriceClass_100 (US/Canada/Europe) keeps a personal portfolio demo
-    comfortably within the CloudFront always-free tier while covering the
-    audience (recruiters, reviewers) most likely to visit it.
-  EOT
-  type        = string
-  default     = "PriceClass_100"
-}
-
-variable "frontend_bucket_suffix" {
-  description = <<-EOT
-    Optional fixed suffix for the frontend bucket name, for reproducible
-    plans across `terraform apply`/`destroy` cycles. If empty, a random
-    suffix is generated once and persisted in state.
-  EOT
-  type        = string
-  default     = ""
 }
