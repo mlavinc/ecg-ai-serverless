@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 const STACK = {
   Frontend: ['React 19', 'TypeScript', 'Vite', 'Tailwind CSS', 'shadcn/ui', 'TanStack Query', 'Framer Motion', 'uPlot', 'Recharts'],
   Backend: ['Python 3.11', 'AWS Lambda', 'scikit-learn', 'NumPy', 'SciPy'],
-  Infrastructure: ['Amazon S3', 'CloudFront', 'Lambda Function URLs', 'Terraform', 'IAM'],
+  Infrastructure: ['Vercel', 'Amazon S3', 'Lambda Function URLs', 'CloudWatch', 'Terraform', 'IAM'],
 }
 
 export function AboutPage() {

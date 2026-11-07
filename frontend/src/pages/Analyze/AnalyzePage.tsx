@@ -48,19 +48,23 @@ export function AnalyzePage() {
       <section className="mb-10 flex flex-col items-center gap-4 text-center">
         <Badge variant="outline" className="gap-1.5">
           <HeartPulse className="size-3" />
-          Not for clinical use
+          Research demo · Not for clinical use
         </Badge>
         <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-          ECG arrhythmia classification on a serverless AWS pipeline
+          Serverless ECG pattern classification
         </h1>
         <p className="text-muted-foreground max-w-xl text-sm sm:text-base">
-          Upload an ECG record or try a sample. A Random Forest model on AWS Lambda
-          classifies the signal into one of six rhythm classes.
+          Upload an ECG record or explore a synthetic signal. A Random Forest model on
+          AWS Lambda compares its features against six learned rhythm classes.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <ArchitectureDrawer />
           <Button variant="ghost" size="sm" className="gap-2" asChild>
-            <a href="https://github.com" target="_blank" rel="noreferrer">
+            <a
+              href="https://github.com/mlavinc/ecg-ai-serverless"
+              target="_blank"
+              rel="noreferrer"
+            >
               View source
             </a>
           </Button>

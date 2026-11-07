@@ -24,7 +24,7 @@ export function ResultCard({ prediction }: { prediction: Prediction }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-base">
-          Classification result
+          Model classification
           <Badge variant={severity}>{SEVERITY_LABEL[severity]}</Badge>
         </CardTitle>
       </CardHeader>
@@ -47,6 +47,10 @@ export function ResultCard({ prediction }: { prediction: Prediction }) {
         </motion.div>
 
         <ConfidenceGauge confidence={prediction.confidence} severity={severity} />
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Confidence is the model&apos;s relative score for this class, not a clinical
+          probability or diagnosis.
+        </p>
       </CardContent>
     </Card>
   )

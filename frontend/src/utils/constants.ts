@@ -19,10 +19,10 @@ export const CLASS_SEVERITY: Record<ClassName, Severity> = {
 }
 
 export const SEVERITY_LABEL: Record<Severity, string> = {
-  safe: 'Low concern',
-  caution: 'Caution',
-  warning: 'Elevated concern',
-  danger: 'High concern',
+  safe: 'Lower-risk class',
+  caution: 'Caution class',
+  warning: 'Elevated-risk class',
+  danger: 'Highest-risk class',
 }
 
 export const CLASS_ORDER: ClassName[] = [

@@ -8,21 +8,21 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 const PIPELINE = [
   {
     icon: Globe,
-    title: 'Browser → CloudFront',
+    title: 'Browser → Vercel',
     description:
-      'The React SPA (built with Vite) is loaded from a single CloudFront distribution, which is the only domain the browser ever contacts.',
-  },
-  {
-    icon: Database,
-    title: 'CloudFront → S3 (static assets)',
-    description:
-      'Requests for the app shell and assets are served from a private S3 bucket, reachable only via an Origin Access Control (OAC). The bucket is never public.',
+      'Vercel serves the React application built with Vite. The frontend contains no model or patient data.',
   },
   {
     icon: Zap,
-    title: 'CloudFront /api/* → Lambda Function URL',
+    title: 'Frontend → Lambda Function URL',
     description:
-      'Requests to /api/* are routed to a Lambda Function URL as a second CloudFront origin behavior. Skipping API Gateway keeps the stack inside AWS always-free tier limits.',
+      'The browser sends the selected ECG record directly to the serverless inference endpoint configured in Vercel.',
+  },
+  {
+    icon: Database,
+    title: 'Lambda → S3 model artifact',
+    description:
+      'On a cold start, Lambda downloads the trained model from S3 into its temporary cache and reuses it for warm invocations.',
   },
   {
     icon: FileJson,
@@ -47,7 +47,7 @@ const PIPELINE = [
 const FAQ = [
   {
     q: 'Why no API Gateway?',
-    a: 'Lambda Function URLs provide a direct HTTPS endpoint with zero extra cost beyond the Lambda invocation itself. API Gateway free tier only lasts 12 months on new accounts; Function URLs plus CloudFront/Lambda\'s always-free tiers keep this project at $0 indefinitely. API Gateway would be reintroduced if this needed request throttling, usage plans, or multiple downstream integrations.',
+    a: 'Lambda Function URLs provide the small demo with a direct HTTPS endpoint and no additional gateway layer. API Gateway would be appropriate if the project needed request throttling, usage plans, authentication policies, or multiple downstream integrations.',
   },
   {
     q: 'Where does the model live?',
@@ -59,7 +59,7 @@ const FAQ = [
   },
   {
     q: 'How is the infrastructure deployed?',
-    a: 'Everything (S3, OAC, CloudFront, Lambda, IAM) is defined in Terraform, so the stack can be created with `terraform apply` and torn down with `terraform destroy`.',
+    a: 'Terraform manages the Lambda function, Function URL, IAM permissions, CloudWatch logging, and deployment artifacts. The trained model is kept in a separate S3 bucket so destroying the inference stack does not remove it.',
   },
 ]
 
@@ -80,11 +80,11 @@ export function HowItWorksPage() {
       <Card className="mb-8">
         <CardContent className="py-6">
           <pre className="overflow-x-auto text-center font-mono text-xs sm:text-sm">
-{`CloudFront
-├── S3 (Frontend)
-└── Lambda Function URL
-        ↓
-Random Forest Model`}
+{`Vercel (React)
+       ↓
+Lambda Function URL
+       ↓
+S3 model → Random Forest inference`}
           </pre>
         </CardContent>
       </Card>

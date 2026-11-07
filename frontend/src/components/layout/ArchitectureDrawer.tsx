@@ -1,4 +1,4 @@
-import { Cloud, Cpu, Database, Globe, Zap } from 'lucide-react'
+import { Cloud, Cpu, Globe, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 import {
@@ -16,15 +16,9 @@ import { Separator } from '@/components/ui/separator'
 const STEPS = [
   {
     icon: Globe,
-    title: 'CloudFront (edge)',
+    title: 'Vercel frontend',
     detail:
-      'A single CDN distribution serves the React app from S3 and forwards any request under /api/* to the backend, so the browser only ever talks to one HTTPS domain.',
-  },
-  {
-    icon: Database,
-    title: 'Amazon S3 (private)',
-    detail:
-      'Hosts the compiled frontend. The bucket has no public access; CloudFront reaches it exclusively through an Origin Access Control (OAC).',
+      'Vercel serves the React application. The browser sends analysis requests directly to the configured AWS Lambda Function URL.',
   },
   {
     icon: Zap,
@@ -65,11 +59,11 @@ export function ArchitectureDrawer() {
 
         <div className="flex flex-col gap-1 px-4 pb-4">
           <div className="bg-muted/50 rounded-lg border p-3 font-mono text-xs leading-relaxed">
-            <div>CloudFront</div>
-            <div className="pl-3">├── S3 (Frontend)</div>
-            <div className="pl-3">└── Lambda Function URL</div>
+            <div>Vercel (React)</div>
             <div className="pl-6">↓</div>
-            <div className="pl-6">Random Forest Model</div>
+            <div>Lambda Function URL</div>
+            <div className="pl-6">↓</div>
+            <div>Feature extraction → Random Forest</div>
           </div>
 
           <Separator className="my-4" />
